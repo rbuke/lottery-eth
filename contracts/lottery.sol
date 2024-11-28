@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract WeeklyLottery {
+    address public owner;
+    address public feeWallet;     // Wallet to receive fees
+    address public vaultWallet;   // Vault to hold prize pool
+    uint256 public ticketPrice;   // cost of entry
+    bool private locked;
+    
+    struct Round {
+        uint256 startTime;
+        uint256 endTime;
+        uint256 drawTime;
+        address winner;
+        uint256 prize;
+        bool finalized;
+    }
+    
+    uint256 public currentRoundId;
+    mapping(uint256 => Round) public rounds;
+    mapping(uint256 => address[]) public roundParticipants;
+    mapping(uint256 => mapping(address => uint256)) public ticketCount;
+    
+    // Events
+    event FeeWalletUpdated(address indexed oldWallet, address indexed newWallet);
+    event VaultWalletUpdated(address indexed oldVault, address indexed newVault);
+    event TicketsPurchased(uint256 roundId, address indexed buyer, uint256 amount, uint256 fee, uint256 toVault);
+    event PrizeDistributed(uint256 roundId, address indexed winner, uint256 prize);
+    event FeeDistributed(uint256 roundId, address indexed feeWallet, uint256 amount);
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not the owner");
+        _;
+    }
+    
+    modifier nonReentrant() {
+        require(!locked, "Reentrant call");
+        locked = true;
+        _;
+        locked = false;
+    }
+    
+    constructor(uint256 _ticketPrice) {
+        owner = msg.sender;
+        feeWallet = msg.sender;    // Default fee wallet to owner
+        vaultWallet = msg.sender;  // Default vault to owner
+        ticketPrice = _ticketPrice;
+    }
+    
+    // Set fee receiving wallet
+    function setFeeWallet(address _newFeeWallet) external onlyOwner {
+        require(_newFeeWallet != address(0), "Invalid fee wallet address");
+        address oldWallet = feeWallet;
+        feeWallet = _newFeeWallet;
+        emit FeeWalletUpdated(oldWallet, _newFeeWallet);
+    }
+    
+    // Set prize vault wallet
+    function setVaultWallet(address _newVaultWallet) external onlyOwner {
+        require(_newVaultWallet != address(0), "Invalid vault address");
+        address oldVault = vaultWallet;
+        vaultWallet = _newVaultWallet;
+        emit VaultWalletUpdated(oldVault, _newVaultWallet);
+    }
+    
+    // Modified buyTickets to split payment between vault and fees
+    function buyTickets(uint256 _numberOfTickets) external payable nonReentrant {
+        Round storage currentRound = rounds[currentRoundId];
+        require(block.timestamp >= currentRound.startTime, "Lottery hasn't started");
+        require(block.timestamp <= currentRound.endTime, "Lottery has ended");
+        require(_numberOfTickets > 0, "Must buy at least one ticket");
+        require(msg.value == ticketPrice * _numberOfTickets, "Incorrect payment amount");
+        
+        // Calculate fee and vault amounts
+        uint256 totalAmount = msg.value;
+        uint256 feeAmount = (totalAmount * 5) / 100;    // 5% fee
+        uint256 vaultAmount = totalAmount - feeAmount;    // 95% to vault
+        
+        // Send fee to fee wallet
+        (bool feeSuccess, ) = payable(feeWallet).call{value: feeAmount}("");
+        require(feeSuccess, "Failed to send fee");
+        
+        // Send prize money to vault
+        (bool vaultSuccess, ) = payable(vaultWallet).call{value: vaultAmount}("");
+        require(vaultSuccess, "Failed to send to vault");
+        
+        // Record ticket purchase
+        if (ticketCount[currentRoundId][msg.sender] == 0) {
+            roundParticipants[currentRoundId].push(msg.sender);
+        }
+        
+        ticketCount[currentRoundId][msg.sender] += _numberOfTickets;
+        
+        emit TicketsPurchased(currentRoundId, msg.sender, _numberOfTickets, feeAmount, vaultAmount);
+    }
+    
+    // Modified selectWinner to draw from vault
+    function selectWinner() external onlyOwner nonReentrant {
+        Round storage currentRound = rounds[currentRoundId];
+        require(!currentRound.finalized, "Round already finalized");
+        require(block.timestamp >= currentRound.drawTime, "Too early for draw");
+        require(roundParticipants[currentRoundId].length > 0, "No participants");
+        
+        // Select winner
+        uint256 totalTickets;
+        address[] storage participants = roundParticipants[currentRoundId];
+        
+        for (uint i = 0; i < participants.length; i++) {
+            totalTickets += ticketCount[currentRoundId][participants[i]];
+        }
+        
+        uint256 winningTicket = uint256(
+            keccak256(
+                abi.encodePacked(
+                    block.timestamp,
+                    block.prevrandao,
+                    blockhash(block.number - 1)
+                )
+            )
+        ) % totalTickets;
+        
+        address winner;
+        uint256 ticketSum;
+        for (uint i = 0; i < participants.length; i++) {
+            ticketSum += ticketCount[currentRoundId][participants[i]];
+            if (ticketSum > winningTicket) {
+                winner = participants[i];
+                break;
+            }
+        }
+        
+        currentRound.winner = winner;
+        currentRound.finalized = true;
+        
+        currentRoundId += 1;
+        
+        // Transfer prize from vault to winner
+        (bool success, ) = payable(winner).call{value: vaultWallet.balance}("");
+        require(success, "Failed to send prize to winner");
+        
+        emit PrizeDistributed(currentRoundId - 1, winner, vaultWallet.balance);
+    }
+    
+    // View functions
+    function getPotDetails() external view returns (
+        uint256 vaultBalance,    // Current prize pool in vault
+        address vaultAddress,    // Vault wallet address
+        address feeAddress,      // Fee wallet address
+        uint256 ticketsSold     // Total tickets in current round
+    ) {
+        uint256 totalTickets;
+        address[] storage participants = roundParticipants[currentRoundId];
+        for (uint i = 0; i < participants.length; i++) {
+            totalTickets += ticketCount[currentRoundId][participants[i]];
+        }
+        
+        return (
+            vaultWallet.balance,
+            vaultWallet,
+            feeWallet,
+            totalTickets
+        );
+    }
+}
