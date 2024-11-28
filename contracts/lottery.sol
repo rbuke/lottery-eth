@@ -28,6 +28,7 @@ contract WeeklyLottery {
     event TicketsPurchased(uint256 roundId, address indexed buyer, uint256 amount, uint256 fee, uint256 toVault);
     event PrizeDistributed(uint256 roundId, address indexed winner, uint256 prize);
     event FeeDistributed(uint256 roundId, address indexed feeWallet, uint256 amount);
+    event TicketPriceUpdated(uint256 oldPrice, uint256 newPrice, uint256 timestamp);
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Not the owner");
@@ -62,6 +63,13 @@ contract WeeklyLottery {
         address oldVault = vaultWallet;
         vaultWallet = _newVaultWallet;
         emit VaultWalletUpdated(oldVault, _newVaultWallet);
+    }
+
+    // Only owner can update price
+    function updateTicketPrice(uint256 _newPrice) external onlyOwner {
+        require(_newPrice > 0, "Price must be greater than 0");
+        ticketPrice = _newPrice;
+        emit TicketPriceUpdated(_newPrice);
     }
     
     // Modified buyTickets to split payment between vault and fees
