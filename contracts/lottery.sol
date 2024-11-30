@@ -68,8 +68,33 @@ contract WeeklyLottery {
     // Only owner can update price
     function updateTicketPrice(uint256 _newPrice) external onlyOwner {
         require(_newPrice > 0, "Price must be greater than 0");
+        uint256 _oldPrice = ticketPrice;
         ticketPrice = _newPrice;
-        emit TicketPriceUpdated(_newPrice);
+        emit TicketPriceUpdated( _oldPrice, _newPrice, block.timestamp);
+    }
+
+    function startNewDraw() external onlyOwner {
+        // If not first round, check previous round is finalized
+        if (currentRoundId > 0) {
+            require(rounds[currentRoundId - 1].finalized, "Previous round not finalized");
+        }
+
+        // Get current round
+        Round storage currentRound = rounds[currentRoundId];
+        require(currentRound.startTime == 0, "Round already started");
+
+        // Set round timestamps
+        uint256 startTime = block.timestamp;
+        uint256 endTime = startTime + 7 days;     // 7 day lottery period
+        uint256 drawTime = endTime + 1 hours;     // 1 hour buffer for drawing
+
+        // Initialize new round
+        currentRound.startTime = startTime;
+        currentRound.endTime = endTime;
+        currentRound.drawTime = drawTime;
+        currentRound.winner = address(0);
+        currentRound.prize = 0;
+        currentRound.finalized = false;
     }
     
     // Modified buyTickets to split payment between vault and fees
@@ -78,12 +103,14 @@ contract WeeklyLottery {
         require(block.timestamp >= currentRound.startTime, "Lottery hasn't started");
         require(block.timestamp <= currentRound.endTime, "Lottery has ended");
         require(_numberOfTickets > 0, "Must buy at least one ticket");
-        require(msg.value == ticketPrice * _numberOfTickets, "Incorrect payment amount");
+        
+        // Calculate required payment
+        uint256 requiredAmount = ticketPrice * _numberOfTickets;
+        require(msg.value >= requiredAmount, "Insufficient payment");
         
         // Calculate fee and vault amounts
-        uint256 totalAmount = msg.value;
-        uint256 feeAmount = (totalAmount * 5) / 100;    // 5% fee
-        uint256 vaultAmount = totalAmount - feeAmount;    // 95% to vault
+        uint256 feeAmount = (requiredAmount * 5) / 100;    // 5% fee
+        uint256 vaultAmount = requiredAmount - feeAmount;   // 95% to vault
         
         // Send fee to fee wallet
         (bool feeSuccess, ) = payable(feeWallet).call{value: feeAmount}("");
@@ -92,6 +119,13 @@ contract WeeklyLottery {
         // Send prize money to vault
         (bool vaultSuccess, ) = payable(vaultWallet).call{value: vaultAmount}("");
         require(vaultSuccess, "Failed to send to vault");
+        
+        // Return excess payment if any
+        uint256 excess = msg.value - requiredAmount;
+        if (excess > 0) {
+            (bool refundSuccess, ) = payable(msg.sender).call{value: excess}("");
+            require(refundSuccess, "Failed to refund excess");
+        }
         
         // Record ticket purchase
         if (ticketCount[currentRoundId][msg.sender] == 0) {
