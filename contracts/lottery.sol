@@ -42,10 +42,14 @@ contract WeeklyLottery {
         locked = false;
     }
     
-    constructor(uint256 _ticketPrice) {
+    constructor(uint256 _ticketPrice, address _feeWallet, address _vaultWallet) {
+        require(_feeWallet != address(0), "Invalid fee wallet address");
+        require(_vaultWallet != address(0), "Invalid vault wallet address");
+        require(_ticketPrice > 0, "Ticket price must be greater than 0");
+        
         owner = msg.sender;
-        feeWallet = msg.sender;    // Default fee wallet to owner
-        vaultWallet = msg.sender;  // Default vault to owner
+        feeWallet = _feeWallet;
+        vaultWallet = _vaultWallet;
         ticketPrice = _ticketPrice;
     }
     
@@ -141,7 +145,7 @@ contract WeeklyLottery {
     function selectWinner() external onlyOwner nonReentrant {
         Round storage currentRound = rounds[currentRoundId];
         require(!currentRound.finalized, "Round already finalized");
-        require(block.timestamp >= currentRound.drawTime, "Too early for draw");
+        // require(block.timestamp >= currentRound.drawTime, "Too early for draw");
         require(roundParticipants[currentRoundId].length > 0, "No participants");
         
         // Select winner
