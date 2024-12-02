@@ -118,7 +118,7 @@ contract WeeklyLottery {
         
         // Send fee to fee wallet
         (bool feeSuccess, ) = payable(feeWallet).call{value: feeAmount}("");
-        require(feeSuccess, "Failed to send fee");
+        require(feeSuccess, "Failed to send fee to fee wallet");
         
         // Send prize money to vault
         (bool vaultSuccess, ) = payable(vaultWallet).call{value: vaultAmount}("");
