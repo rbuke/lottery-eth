@@ -1,8 +1,25 @@
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox";
+require('@nomicfoundation/hardhat-toolbox');
+require('dotenv').config();
+import "@nomicfoundation/hardhat-ignition-ethers";
 
-const config: HardhatUserConfig = {
-  solidity: "0.8.27",
+/** @type import('hardhat/config').HardhatUserConfig */
+module.exports = {
+  solidity: '0.8.18',
+  networks: {
+    hardhat: {
+      chainId: 1337,
+    },
+    arbitrumSepolia: {
+      url: 'https://sepolia-rollup.arbitrum.io/rpc',
+      chainId: 421614,
+      accounts: [process.env.SEPOLIA_PRIVATE_KEY]
+    },
+  },
+  
+  etherscan: {
+    apiKey: {
+        arbitrumOne: process.env.ARBISCAN_API_KEY,
+        arbitrumSepolia: process.env.ARBISCAN_API_KEY,
+    },
+  }
 };
-
-export default config;

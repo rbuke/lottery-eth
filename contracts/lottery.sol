@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.18;
 
 contract WeeklyLottery {
+    ////////////////////////////////////////////////////////////////////////////
+    ///////////////////////// VARIABLE DECLARATION /////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
     address public owner;
     address public feeWallet;     // Wallet to receive fees
     address public vaultWallet;   // Vault to hold prize pool
@@ -22,13 +26,21 @@ contract WeeklyLottery {
     mapping(uint256 => address[]) public roundParticipants;
     mapping(uint256 => mapping(address => uint256)) public ticketCount;
     
-    // Events
+    ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////// EVENTS //////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
     event FeeWalletUpdated(address indexed oldWallet, address indexed newWallet);
     event VaultWalletUpdated(address indexed oldVault, address indexed newVault);
     event TicketsPurchased(uint256 roundId, address indexed buyer, uint256 amount, uint256 fee, uint256 toVault);
     event PrizeDistributed(uint256 roundId, address indexed winner, uint256 prize);
     event FeeDistributed(uint256 roundId, address indexed feeWallet, uint256 amount);
     event TicketPriceUpdated(uint256 oldPrice, uint256 newPrice, uint256 timestamp);
+    
+
+    ////////////////////////////////////////////////////////////////////////////
+    //////////////////////////// MODIFIERS /////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Not the owner");
@@ -42,7 +54,12 @@ contract WeeklyLottery {
         locked = false;
     }
     
-    constructor(uint256 _ticketPrice, address _feeWallet, address _vaultWallet) {
+
+    ////////////////////////////////////////////////////////////////////////////
+    /////////////////////////// CONSTRUCTORS ///////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+    constructor(uint256 _ticketPrice, address _feeWallet, address _vaultWallet) payable {
         require(_feeWallet != address(0), "Invalid fee wallet address");
         require(_vaultWallet != address(0), "Invalid vault wallet address");
         require(_ticketPrice > 0, "Ticket price must be greater than 0");
@@ -53,6 +70,10 @@ contract WeeklyLottery {
         ticketPrice = _ticketPrice;
     }
     
+    ////////////////////////////////////////////////////////////////////////////
+    //////////////////////////// FUNCTIONS /////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
     // Set fee receiving wallet
     function setFeeWallet(address _newFeeWallet) external onlyOwner {
         require(_newFeeWallet != address(0), "Invalid fee wallet address");
