@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import { Lottery } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { ContractEvent  } from "ethers";
+import { Log } from "@ethersproject/abstract-provider";
 
 async function main() {
   // Get the signers
@@ -34,56 +34,13 @@ async function main() {
   const ticketFee = await lottery.ticketFee();
   console.log("Ticket fee in wei:", ethers.formatEther(ticketFee));
 
-  // Buy tickets as addr1
-  const buyTx = await lottery.connect(addr1).buyTickets(1, {
-    value: price
-  });
-  await buyTx.wait();
- 
-
+  // buy tickets
+  const tx = await lottery.connect(addr1).buyTickets(2, { value: price * BigInt(2) });
+  const receipt = await tx.wait();
+  console.log(receipt);
 }
 
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
-
-import { Contract } from "@ethersproject/contracts";
-import { Signer } from "@ethersproject/abstract-signer";
-import { parseEther } from "ethers";
-
-
-async function buyTickets(
-  lottery: Contract, 
-  numberOfTickets: number,
-  buyerAddress: Signer
-) {
-  // Define return type
-  type TicketPurchaseResult = {
-      hash: string;
-      buyer: string;
-      ticketCount: string;
-      roundId: string;
-  }
-
-  try {
-      const ticketPrice = await lottery.ticketPrice();
-      const totalCost = ticketPrice * BigInt(numberOfTickets);
-
-      const tx = await lottery.connect(buyerAddress).buyTickets(numberOfTickets, { value: totalCost });
-      const receipt = await tx.wait();
-      const event = receipt.events?.find((e: Event) => e.event === 'TicketsPurchased');
-
-      const result: TicketPurchaseResult = {
-          hash: tx.hash,
-          buyer: event.args[1],
-          ticketCount: event.args[2].toString(),
-          roundId: event.args[0].toString()
-      };
-
-      return result;
-  } catch (error) {
-      console.error("Error buying tickets:", error);
-      throw error;
-  }
-}
