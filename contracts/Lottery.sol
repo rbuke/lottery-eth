@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
+import "hardhat/console.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract WeeklyLottery {
+contract Lottery {
+
     ////////////////////////////////////////////////////////////////////////////
     ///////////////////////// VARIABLE DECLARATION /////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
@@ -10,6 +13,9 @@ contract WeeklyLottery {
     address public feeWallet;     // Wallet to receive fees
     address public vaultWallet;   // Vault to hold prize pool
     uint256 public ticketPrice;   // cost of entry
+    uint256 public ticketFee;
+    uint256 public currentRoundId;
+
     bool private locked;
     
     struct Round {
@@ -21,7 +27,7 @@ contract WeeklyLottery {
         bool finalized;
     }
     
-    uint256 public currentRoundId;
+   
     mapping(uint256 => Round) public rounds;
     mapping(uint256 => address[]) public roundParticipants;
     mapping(uint256 => mapping(address => uint256)) public ticketCount;
@@ -56,7 +62,7 @@ contract WeeklyLottery {
     
 
     ////////////////////////////////////////////////////////////////////////////
-    /////////////////////////// CONSTRUCTORS ///////////////////////////////////
+    /////////////////////////// CONSTRUCTOR ////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
     constructor(uint256 _ticketPrice, address _feeWallet, address _vaultWallet) payable {
@@ -68,10 +74,11 @@ contract WeeklyLottery {
         feeWallet = _feeWallet;
         vaultWallet = _vaultWallet;
         ticketPrice = _ticketPrice;
+        ticketFee = (_ticketPrice * 5) / 100;
     }
     
     ////////////////////////////////////////////////////////////////////////////
-    //////////////////////////// FUNCTIONS /////////////////////////////////////
+    //////////////////////////// OWNER FUNCTIONS ///////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
     // Set fee receiving wallet
@@ -121,48 +128,8 @@ contract WeeklyLottery {
         currentRound.prize = 0;
         currentRound.finalized = false;
     }
-    
-    // Modified buyTickets to split payment between vault and fees
-    function buyTickets(uint256 _numberOfTickets) external payable nonReentrant {
-        Round storage currentRound = rounds[currentRoundId];
-        require(block.timestamp >= currentRound.startTime, "Lottery hasn't started");
-        require(block.timestamp <= currentRound.endTime, "Lottery has ended");
-        require(_numberOfTickets > 0, "Must buy at least one ticket");
-        
-        // Calculate required payment
-        uint256 requiredAmount = ticketPrice * _numberOfTickets;
-        require(msg.value >= requiredAmount, "Insufficient payment");
-        
-        // Calculate fee and vault amounts
-        uint256 feeAmount = (requiredAmount * 5) / 100;    // 5% fee
-        uint256 vaultAmount = requiredAmount - feeAmount;   // 95% to vault
-        
-        // Send fee to fee wallet
-        (bool feeSuccess, ) = payable(feeWallet).call{value: feeAmount}("");
-        require(feeSuccess, "Failed to send fee to fee wallet");
-        
-        // Send prize money to vault
-        (bool vaultSuccess, ) = payable(vaultWallet).call{value: vaultAmount}("");
-        require(vaultSuccess, "Failed to send to vault");
-        
-        // Return excess payment if any
-        uint256 excess = msg.value - requiredAmount;
-        if (excess > 0) {
-            (bool refundSuccess, ) = payable(msg.sender).call{value: excess}("");
-            require(refundSuccess, "Failed to refund excess");
-        }
-        
-        // Record ticket purchase
-        if (ticketCount[currentRoundId][msg.sender] == 0) {
-            roundParticipants[currentRoundId].push(msg.sender);
-        }
-        
-        ticketCount[currentRoundId][msg.sender] += _numberOfTickets;
-        
-        emit TicketsPurchased(currentRoundId, msg.sender, _numberOfTickets, feeAmount, vaultAmount);
-    }
-    
-    // Modified selectWinner to draw from vault
+
+        // Modified selectWinner to draw from vault
     function selectWinner() external onlyOwner nonReentrant {
         Round storage currentRound = rounds[currentRoundId];
         require(!currentRound.finalized, "Round already finalized");
@@ -209,12 +176,60 @@ contract WeeklyLottery {
         emit PrizeDistributed(currentRoundId - 1, winner, vaultWallet.balance);
     }
     
-    // View functions
+    
+    ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////// PAYABLE FUNCTIONS ///////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
+    // Buy a ticket
+    function buyTickets(uint256 _numberOfTickets) external payable nonReentrant {
+        Round storage currentRound = rounds[currentRoundId];
+        require(block.timestamp >= currentRound.startTime, "Lottery hasn't started");
+        require(block.timestamp <= currentRound.endTime, "Lottery has ended");
+        require(_numberOfTickets > 0, "Must buy at least one ticket");
+        
+        // Calculate required payment
+        uint256 requiredAmount = ticketPrice * _numberOfTickets;
+        require(msg.value >= requiredAmount, "Insufficient payment");
+        
+        // Calculate fee and vault amounts
+        uint256 feeAmount = (requiredAmount * 5) / 100;    // 5% fee
+        uint256 vaultAmount = requiredAmount - feeAmount;   // 95% to vault
+        
+        // Send fee to fee wallet
+        (bool feeSuccess, ) = payable(feeWallet).call{value: feeAmount}("");
+        require(feeSuccess, "Failed to send fee to fee wallet");
+        
+        // Send prize money to vault
+        (bool vaultSuccess, ) = payable(vaultWallet).call{value: vaultAmount}("");
+        require(vaultSuccess, "Failed to send to vault");
+        
+        // Return excess payment if any
+        uint256 excess = msg.value - requiredAmount;
+        if (excess > 0) {
+            (bool refundSuccess, ) = payable(msg.sender).call{value: excess}("");
+            require(refundSuccess, "Failed to refund excess");
+        }
+        
+        // Record ticket purchase
+        if (ticketCount[currentRoundId][msg.sender] == 0) {
+            roundParticipants[currentRoundId].push(msg.sender);
+        }
+        
+        ticketCount[currentRoundId][msg.sender] += _numberOfTickets;
+        
+        emit TicketsPurchased(currentRoundId, msg.sender, _numberOfTickets, feeAmount, vaultAmount);
+    }
+    
+    ////////////////////////////////////////////////////////////////////////////
+    //////////////////////////// VIEW FUNCTIONS ////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
     function getPotDetails() external view returns (
         uint256 vaultBalance,    // Current prize pool in vault
         address vaultAddress,    // Vault wallet address
         address feeAddress,      // Fee wallet address
-        uint256 ticketsSold     // Total tickets in current round
+        uint256 ticketsSold      // Total tickets in current round
     ) {
         uint256 totalTickets;
         address[] storage participants = roundParticipants[currentRoundId];
@@ -229,4 +244,59 @@ contract WeeklyLottery {
             totalTickets
         );
     }
+
+    // Let a viewer check if they have bought tickets
+    function viewTickets() external view returns (
+        address playerAddress,
+        uint256 playerTickets  // Total tickets in current round
+    ) {
+        playerTickets = ticketCount[currentRoundId][msg.sender];
+        
+        return (
+            msg.sender,
+            playerTickets
+        );
+    }
+
+    function isDrawOpen() external view returns (
+        bool isOpen,
+        string memory status
+    ) {
+        Round storage currentRound = rounds[currentRoundId];
+        
+        // Check if a round has been initialized
+        if (currentRound.startTime == 0) {
+            return (false, "No draw has been started yet");
+        }
+        
+        // Check if current round is finalized
+        if (currentRound.finalized) {
+            return (false, "Current draw has been completed");
+        }
+        
+        uint256 currentTime = block.timestamp;
+        
+        // Check if we're within the valid time window
+        if (currentTime < currentRound.startTime) {
+            return (false, string.concat(
+                "Draw will start at timestamp: ",
+                Strings.toString(currentRound.startTime)
+            ));
+        }
+        
+        if (currentTime > currentRound.endTime) {
+            return (false, string.concat(
+                "Draw ended at timestamp: ",
+                Strings.toString(currentRound.endTime)
+            ));
+        }
+        
+        // If we reach here, the draw is open
+        uint256 timeRemaining = currentRound.endTime - currentTime;
+        return (true, string.concat(
+            "Draw is open. Time remaining (in seconds): ",
+            Strings.toString(timeRemaining)
+        ));
+    }
+
 }
