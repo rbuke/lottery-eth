@@ -14,7 +14,7 @@ async function main() {
   // Get the contract at the deployed address
   const lottery: Lottery = await ethers.getContractAt(
     "Lottery",
-    "0x5fbdb2315678afecb367f032d93f642f64180aa3" 
+    "0x5FbDB2315678afecb367f032d93F642f64180aa3" 
   );
 
   // check if draw is open
