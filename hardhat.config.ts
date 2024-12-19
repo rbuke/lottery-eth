@@ -1,10 +1,12 @@
 require('@nomicfoundation/hardhat-toolbox');
 require('dotenv').config();
 import "@nomicfoundation/hardhat-ignition-ethers";
+import "@typechain/hardhat";
+import "@nomicfoundation/hardhat-ethers";
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: '0.8.18',
+  solidity: '0.8.20',
   networks: {
     hardhat: {
       chainId: 1337,
