@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -167,13 +166,16 @@ contract Lottery {
         currentRound.winner = winner;
         currentRound.finalized = true;
         
+        uint256 prizeAmount = address(vaultWallet).balance;  // Get balance correctly
+        currentRound.prize = prizeAmount;
+        
         currentRoundId += 1;
         
         // Transfer prize from vault to winner
-        (bool success, ) = payable(winner).call{value: vaultWallet.balance}("");
+        (bool success, ) = payable(winner).call{value: prizeAmount}("");
         require(success, "Failed to send prize to winner");
         
-        emit PrizeDistributed(currentRoundId - 1, winner, vaultWallet.balance);
+        emit PrizeDistributed(currentRoundId - 1, winner, prizeAmount);
     }
     
     
@@ -226,21 +228,24 @@ contract Lottery {
     ////////////////////////////////////////////////////////////////////////////
 
     function getPotDetails() external view returns (
-        uint256 vaultBalance,    // Current prize pool in vault
-        address vaultAddress,    // Vault wallet address
-        address feeAddress,      // Fee wallet address
-        uint256 ticketsSold      // Total tickets in current round
+        uint256 vaultBalance,    
+        address vaultAddress,    
+        uint256 drawTime,  
+        uint256 ticketsSold     
     ) {
-        uint256 totalTickets;
+        uint256 totalTickets = 0;  // explicitly initialize to 0
         address[] storage participants = roundParticipants[currentRoundId];
+        
+        // Safely count tickets
         for (uint i = 0; i < participants.length; i++) {
-            totalTickets += ticketCount[currentRoundId][participants[i]];
+            uint256 participantTickets = ticketCount[currentRoundId][participants[i]];
+            totalTickets += participantTickets;
         }
         
         return (
             vaultWallet.balance,
             vaultWallet,
-            feeWallet,
+            rounds[currentRoundId].drawTime,
             totalTickets
         );
     }

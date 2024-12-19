@@ -7,9 +7,7 @@ const VAULT_WALLET: string = "0x5DC8D3FF8C7c1cCe459a4b528a3ea96b654f696E";
 
 
 const lotteryContract = buildModule("LotteryModule", (m) => {
-  
     const lottery = m.contract("Lottery", [TICKET_PRICE, FEE_WALLET, VAULT_WALLET], {});
-  
     return { lottery };
   });
   
