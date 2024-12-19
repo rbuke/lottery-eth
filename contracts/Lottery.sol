@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-// Add interface or import for VaultWallet
-interface IVaultWallet {
-    function deposit() external payable;
-    function withdraw(address payable to, uint256 amount) external;
-}
 
 contract Lottery {
 
@@ -36,8 +32,6 @@ contract Lottery {
     mapping(uint256 => Round) public rounds;
     mapping(uint256 => address[]) public roundParticipants;
     mapping(uint256 => mapping(address => uint256)) public ticketCount;
-    
-    IVaultWallet public vault;
     
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// EVENTS //////////////////////////////////////
@@ -81,7 +75,6 @@ contract Lottery {
         vaultWallet = _vaultWallet;
         ticketPrice = _ticketPrice;
         ticketFee = (_ticketPrice * 5) / 100;
-        vault = IVaultWallet(_vaultWallet);
     }
     
     ////////////////////////////////////////////////////////////////////////////
@@ -179,8 +172,9 @@ contract Lottery {
         
         currentRoundId += 1;
         
-        // Use vault to send prize
-        vault.withdraw(payable(winner), prizeAmount);
+        // Transfer prize from vault to winner
+        (bool success, ) = payable(winner).call{value: prizeAmount}("");
+        require(success, "Failed to send prize to winner");
         
         emit PrizeDistributed(currentRoundId - 1, winner, prizeAmount);
     }
@@ -209,9 +203,9 @@ contract Lottery {
         (bool feeSuccess, ) = payable(feeWallet).call{value: feeAmount}("");
         require(feeSuccess, "Failed to send fee to fee wallet");
         
-        // Instead of keeping ETH here, forward it to vault
-        vault.deposit{value: msg.value}();
-        
+        // Forward vault amount to vault
+        (bool vaultSuccess, ) = address(vaultWallet).call{value: vaultAmount}("");
+        require(vaultSuccess, "Failed to send to vault");
         // Return excess payment if any
         uint256 excess = msg.value - requiredAmount;
         if (excess > 0) {

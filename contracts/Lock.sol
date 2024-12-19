@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.20;
-
+// SPDX-License-Identifier: MIT
 // Uncomment this line to use console.log
 // import "hardhat/console.sol";
+pragma solidity ^0.8.20;
 
 contract Lock {
     uint public unlockTime;
