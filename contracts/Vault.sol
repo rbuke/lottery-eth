@@ -13,11 +13,18 @@ contract VaultWallet {
     ///////////////////////// VARIABLE DECLARATION /////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    address public immutable lotteryContract;
+    address public lotteryContract;
+    address public owner;
+    bool public initialized;
 
     ////////////////////////////////////////////////////////////////////////////
     //////////////////////////// MODIFIERS /////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call");
+        _;
+    }
 
     modifier onlyLottery() {
         require(msg.sender == lotteryContract, "Only lottery can withdraw");
@@ -28,16 +35,17 @@ contract VaultWallet {
     //////////////////////////////// CONSTRUCTOR ///////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    constructor(address _lotteryContract) payable {
-        require(_lotteryContract != address(0), "Invalid lottery address");
-        lotteryContract = _lotteryContract;
+    constructor() payable {
+        owner = msg.sender;
     }
+
 
     ////////////////////////////////////////////////////////////////////////////
     //////////////////////////////// EVENTS ////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
     event Withdrawal(address indexed to, uint256 amount);
+    event Initialized(address indexed lotteryContract);
 
     ////////////////////////////////////////////////////////////////////////////
     //////////////////////////////// FUNCTIONS /////////////////////////////////
@@ -55,16 +63,28 @@ contract VaultWallet {
     }
 
     // Withdraw funds
-    function withdraw(address to, uint256 amount) external onlyLottery {
-        require(to != address(0), "Invalid recipient");
+    function withdraw(address winner, uint256 amount) external onlyLottery {
+        require(winner != address(0), "Invalid recipient");
         require(amount > 0, "Amount must be greater than 0");
         require(amount <= address(this).balance, "Insufficient balance");
         
-        (bool success, ) = payable(to).call{value: amount}("");
+        (bool success, ) = payable(winner).call{value: amount}("");
         require(success, "Transfer failed");
         
-        emit Withdrawal(to, amount);
+        emit Withdrawal(winner, amount);
     }
-    
-    
+
+    // Initialize or update lottery contract address
+    function initialize(address _lotteryContract) external onlyOwner {
+        require(_lotteryContract != address(0), "Invalid lottery address");
+        
+        if (initialized) {
+            emit Initialized(_lotteryContract);
+            return;  // Silently return if already initialized
+        }
+        
+        lotteryContract = _lotteryContract;
+        initialized = true;
+        emit Initialized(_lotteryContract);
+    }
 }

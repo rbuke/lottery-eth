@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-// Add interface or import for VaultWallet
+
+
 interface IVaultWallet {
-    function deposit() external payable;
-    function withdraw(address payable to, uint256 amount) external;
+    function getBalance() external view returns (uint256);
+    function withdraw(address to, uint256 amount) external;
+    function initialize(address _lotteryContract) external;
 }
 
 contract Lottery {
@@ -16,9 +19,10 @@ contract Lottery {
 
     address public owner;
     address public feeWallet;     // Wallet to receive fees
-    address public vaultWallet;   // Vault to hold prize pool
     uint256 public ticketPrice;   // cost of entry
     uint256 public ticketFee;
+
+    IVaultWallet public vaultWallet;
     uint256 public currentRoundId;
 
     bool private locked;
@@ -29,15 +33,13 @@ contract Lottery {
         uint256 drawTime;
         address winner;
         uint256 prize;
+        uint256 ticketsSold;
         bool finalized;
     }
-    
-   
+
     mapping(uint256 => Round) public rounds;
     mapping(uint256 => address[]) public roundParticipants;
     mapping(uint256 => mapping(address => uint256)) public ticketCount;
-    
-    IVaultWallet public vault;
     
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// EVENTS //////////////////////////////////////
@@ -78,17 +80,16 @@ contract Lottery {
         
         owner = msg.sender;
         feeWallet = _feeWallet;
-        vaultWallet = _vaultWallet;
+        vaultWallet = IVaultWallet(_vaultWallet);
         ticketPrice = _ticketPrice;
         ticketFee = (_ticketPrice * 5) / 100;
-        vault = IVaultWallet(_vaultWallet);
     }
     
     ////////////////////////////////////////////////////////////////////////////
     //////////////////////////// OWNER FUNCTIONS ///////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    // Set fee receiving wallet
+    // Set fee receiving  contract
     function setFeeWallet(address _newFeeWallet) external onlyOwner {
         require(_newFeeWallet != address(0), "Invalid fee wallet address");
         address oldWallet = feeWallet;
@@ -99,8 +100,8 @@ contract Lottery {
     // Set prize vault wallet
     function setVaultWallet(address _newVaultWallet) external onlyOwner {
         require(_newVaultWallet != address(0), "Invalid vault address");
-        address oldVault = vaultWallet;
-        vaultWallet = _newVaultWallet;
+        address oldVault = address(vaultWallet);  // Convert IVaultWallet to address
+        vaultWallet = IVaultWallet(_newVaultWallet);  // Convert address to IVaultWallet
         emit VaultWalletUpdated(oldVault, _newVaultWallet);
     }
 
@@ -115,7 +116,7 @@ contract Lottery {
     function startNewDraw() external onlyOwner {
         // If not first round, check previous round is finalized
         if (currentRoundId > 0) {
-            require(rounds[currentRoundId - 1].finalized, "Previous round not finalized");
+                require(rounds[currentRoundId - 1].finalized, "Previous round not finalized");
         }
 
         // Get current round
@@ -123,9 +124,9 @@ contract Lottery {
         require(currentRound.startTime == 0, "Round already started");
 
         // Set round timestamps
-        uint256 startTime = block.timestamp;
-        uint256 endTime = startTime + 7 days;     // 7 day lottery period
-        uint256 drawTime = endTime + 1 hours;     // 1 hour buffer for drawing
+        uint256 startTime = block.timestamp;   // Current time
+        uint256 endTime = startTime + 7 days;  // 7 days from now
+        uint256 drawTime = endTime + 1 hours;  // 1 hour after end
 
         // Initialize new round
         currentRound.startTime = startTime;
@@ -133,6 +134,7 @@ contract Lottery {
         currentRound.drawTime = drawTime;
         currentRound.winner = address(0);
         currentRound.prize = 0;
+        currentRound.ticketsSold = 0;
         currentRound.finalized = false;
     }
 
@@ -140,17 +142,9 @@ contract Lottery {
     function selectWinner() external onlyOwner nonReentrant {
         Round storage currentRound = rounds[currentRoundId];
         require(!currentRound.finalized, "Round already finalized");
-        // require(block.timestamp >= currentRound.drawTime, "Too early for draw");
-        require(roundParticipants[currentRoundId].length > 0, "No participants");
+        require(currentRound.ticketsSold > 0, "No tickets sold");
         
         // Select winner
-        uint256 totalTickets;
-        address[] storage participants = roundParticipants[currentRoundId];
-        
-        for (uint i = 0; i < participants.length; i++) {
-            totalTickets += ticketCount[currentRoundId][participants[i]];
-        }
-        
         uint256 winningTicket = uint256(
             keccak256(
                 abi.encodePacked(
@@ -159,14 +153,14 @@ contract Lottery {
                     blockhash(block.number - 1)
                 )
             )
-        ) % totalTickets;
+        ) % currentRound.ticketsSold;
         
         address winner;
         uint256 ticketSum;
-        for (uint i = 0; i < participants.length; i++) {
-            ticketSum += ticketCount[currentRoundId][participants[i]];
+        for (uint i = 0; i < roundParticipants[currentRoundId].length; i++) {
+            ticketSum += ticketCount[currentRoundId][roundParticipants[currentRoundId][i]];
             if (ticketSum > winningTicket) {
-                winner = participants[i];
+                winner = roundParticipants[currentRoundId][i];
                 break;
             }
         }
@@ -174,13 +168,13 @@ contract Lottery {
         currentRound.winner = winner;
         currentRound.finalized = true;
         
-        uint256 prizeAmount = address(vaultWallet).balance;  // Get balance correctly
+        uint256 prizeAmount = vaultWallet.getBalance();  // Use the interface method
         currentRound.prize = prizeAmount;
         
         currentRoundId += 1;
         
-        // Use vault to send prize
-        vault.withdraw(payable(winner), prizeAmount);
+        // Transfer prize from vault to winner
+        vaultWallet.withdraw(winner, prizeAmount);  // Use the interface method to withdraw
         
         emit PrizeDistributed(currentRoundId - 1, winner, prizeAmount);
     }
@@ -209,9 +203,9 @@ contract Lottery {
         (bool feeSuccess, ) = payable(feeWallet).call{value: feeAmount}("");
         require(feeSuccess, "Failed to send fee to fee wallet");
         
-        // Instead of keeping ETH here, forward it to vault
-        vault.deposit{value: msg.value}();
-        
+        // Forward vault amount to vault
+        (bool vaultSuccess, ) = payable(address(vaultWallet)).call{value: vaultAmount}("");
+        require(vaultSuccess, "Failed to send to vault");
         // Return excess payment if any
         uint256 excess = msg.value - requiredAmount;
         if (excess > 0) {
@@ -226,33 +220,40 @@ contract Lottery {
         
         ticketCount[currentRoundId][msg.sender] += _numberOfTickets;
         
+        currentRound.ticketsSold += _numberOfTickets;
+        
         emit TicketsPurchased(currentRoundId, msg.sender, _numberOfTickets, feeAmount, vaultAmount);
     }
     
     ////////////////////////////////////////////////////////////////////////////
     //////////////////////////// VIEW FUNCTIONS ////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
-
     function getPotDetails() external view returns (
-        uint256 vaultBalance,    
-        address vaultAddress,    
-        uint256 drawTime,  
-        uint256 ticketsSold     
-    ) {
-        uint256 totalTickets = 0;  // explicitly initialize to 0
-        address[] storage participants = roundParticipants[currentRoundId];
+        uint256 currentBalance,      // Real-time vault balance
+        uint256 ticketsSold,        // Current ticket count
+        uint256 startTime,          // Fixed start time
+        uint256 endTime,            // Fixed end time
+        uint256 drawTime,           // Fixed draw time
+        uint256 timeRemaining,      // Calculated time remaining
+        bool isFinalized,           // Round status
+        address winner              // Winner (if drawn)
+    ) {    
+        Round storage currentRound = rounds[currentRoundId];
         
-        // Safely count tickets
-        for (uint i = 0; i < participants.length; i++) {
-            uint256 participantTickets = ticketCount[currentRoundId][participants[i]];
-            totalTickets += participantTickets;
+        uint256 _timeRemaining;
+        if (block.timestamp < currentRound.endTime) {
+            _timeRemaining = currentRound.endTime - block.timestamp;
         }
         
         return (
-            vaultWallet.balance,
-            vaultWallet,
-            rounds[currentRoundId].drawTime,
-            totalTickets
+            vaultWallet.getBalance(),  // This gets current balance
+            currentRound.ticketsSold,
+            currentRound.startTime,
+            currentRound.endTime,
+            currentRound.drawTime,
+            _timeRemaining,
+            currentRound.finalized,
+            currentRound.winner
         );
     }
 
