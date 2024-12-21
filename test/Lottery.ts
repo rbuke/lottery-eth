@@ -104,16 +104,22 @@ describe("Lottery", function () {
   describe("Winner Selection", function () {
     beforeEach(async function () {
       await lottery.startNewDraw();
-      await lottery.connect(addr1).buyTickets(1, {
-        value: ticketPrice
+      await lottery.connect(addr1).buyTickets(4, {
+        value: ticketPrice * 4n
       });
     });
 
     it("Should select winner", async function () {
+      // Fast forward time by 7 days + 1 hour to pass end time
+      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60 + 3600]);
+      await ethers.provider.send("evm_mine", []);
+
       await lottery.selectWinner();
-      const potDetails = await lottery.getPotDetails();
-      expect(potDetails.isFinalized).to.be.true;
-      expect(potDetails.winner).to.not.equal(ethers.ZeroAddress);
+      const currentId = await lottery.currentRoundId();
+      const round = await lottery.rounds(currentId - 1n);
+      
+      expect(round.finalized).to.be.true;
+      expect(round.winner).to.not.equal(ethers.ZeroAddress);
     });
 
     it("Should not allow non-owner to select winner", async function () {
@@ -123,10 +129,27 @@ describe("Lottery", function () {
     });
 
     it("Should not select winner if no tickets sold", async function () {
+      // First finalize current round
+      await lottery.selectWinner();
+      
+      // Start new round
       await lottery.startNewDraw();
+      
+      // Try to select winner with no tickets
       await expect(
         lottery.selectWinner()
       ).to.be.revertedWith("No tickets sold");
+    });
+   
+    it("Lottery should transfer funds to winner", async function () {
+      await lottery.connect(addr1).buyTickets(1, {
+        value: ticketPrice * 1n
+      });
+      const winnerBalance = await ethers.provider.getBalance(addr1.address);
+      await lottery.selectWinner();
+      const winnerBalanceAfter = await ethers.provider.getBalance(addr1.address);
+      expect(winnerBalanceAfter - winnerBalance).to.be.greaterThan(0);
+      console.log("Winnings:",  ethers.formatEther(winnerBalanceAfter - winnerBalance));
     });
   });
 
