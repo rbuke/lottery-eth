@@ -1,0 +1,51 @@
+name: Smart Contract Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+    
+    - name: Install Hardhat
+      run: npm install --save-dev hardhat@2.22.16
+    
+    - name: Install Solhint
+      run: npm install -g solhint
+    
+    - name: Install typescript ESLINT
+      run: npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin
+
+    - name: Install dependencies
+      run: npm ci
+    - name: Show Solhint version 
+      run: solhint --version
+    
+    - name: Run Lint
+      run: solhint 'contracts/**/*.sol'
+
+    - name: Run hardhat tests
+      run: npx hardhat test
+      env:        
+        REPORT_GAS: true
+
+    - name: Run coverage
+      run: npx hardhat coverage
+      
+    - name: Run Solidity linting
+      run: npx solhint 'contracts/**/*.sol'
+
+    - name: Run TypeScript linting
+      run: npx eslint '**/*.{ts,tsx}' 
