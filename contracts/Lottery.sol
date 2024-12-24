@@ -17,39 +17,39 @@ contract Lottery {
     ///////////////////////// VARIABLE DECLARATION /////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    address public owner;
+    address public owner;          // Owner of the lottery contract
     address public feeWallet;     // Wallet to receive fees
     uint256 public ticketPrice;   // cost of entry
-    uint256 public ticketFee;
+    uint256 public ticketFee;     // Our fee
 
-    IVaultWallet public vaultWallet;
-    uint256 public currentRoundId;
+    IVaultWallet public vaultWallet;  // Vault wallet to hold prize pool
+    uint256 public currentRoundId;    // Current round ID
 
-    bool private locked;
+    bool private locked;             // Reentrancy guard
     
     struct Round {
-        uint256 startTime;
-        uint256 endTime;
-        uint256 drawTime;
-        address winner;
-        uint256 prize;
-        uint256 ticketsSold;
-        bool finalized;
+        uint256 startTime;           // Start time of the round
+        uint256 endTime;             // End time of the round
+        uint256 drawTime;            // Draw time of the round
+        address winner;              // Winner of the round
+        uint256 prize;               // Prize for the round - Only set when winner is drawn
+        uint256 ticketsSold;         // Tickets sold for the round
+        bool finalized;              // Whether the round is finalized
     }
 
-    mapping(uint256 => Round) public rounds;
-    mapping(uint256 => address[]) public roundParticipants;
-    mapping(uint256 => mapping(address => uint256)) public ticketCount;
+    mapping(uint256 => Round) public rounds;  // Mapping of round IDs to round details
+    mapping(uint256 => address[]) public roundParticipants;  // Mapping of round IDs to participants
+    mapping(uint256 => mapping(address => uint256)) public ticketCount;  // Mapping of round IDs to ticket counts for each participant
     
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////// EVENTS //////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
-    event FeeWalletUpdated(address indexed oldWallet, address indexed newWallet);
-    event VaultWalletUpdated(address indexed oldVault, address indexed newVault);
-    event TicketsPurchased(uint256 roundId, address indexed buyer, uint256 amount, uint256 fee, uint256 toVault);
-    event PrizeDistributed(uint256 roundId, address indexed winner, uint256 prize);
-    event FeeDistributed(uint256 roundId, address indexed feeWallet, uint256 amount);
+    event FeeWalletUpdated(address indexed oldWallet, address indexed newWallet);  // Event for when the fee wallet is updated
+    event VaultWalletUpdated(address indexed oldVault, address indexed newVault);  // Event for when the vault wallet is updated
+    event TicketsPurchased(uint256 roundId, address indexed buyer, uint256 amount, uint256 fee, uint256 toVault);  // Event for when tickets are purchased
+    event PrizeDistributed(uint256 roundId, address indexed winner, uint256 prize);  // Event for when the prize is distributed
+    event FeeDistributed(uint256 roundId, address indexed feeWallet, uint256 amount);  // Event for when the fee is distributed
     event TicketPriceUpdated(uint256 oldPrice, uint256 newPrice, uint256 timestamp);
     
 
@@ -57,11 +57,13 @@ contract Lottery {
     //////////////////////////// MODIFIERS /////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
     
+    // Only owner can call functions
     modifier onlyOwner() {
         require(msg.sender == owner, "Not the owner");
         _;
     }
     
+    // Reentrancy guard
     modifier nonReentrant() {
         require(!locked, "Reentrant call");
         locked = true;
@@ -145,6 +147,7 @@ contract Lottery {
         require(currentRound.ticketsSold > 0, "No tickets sold");
         
         // Select winner
+        // TODO: Use a more secure random number generator
         uint256 winningTicket = uint256(
             keccak256(
                 abi.encodePacked(

@@ -54,7 +54,7 @@ contract VaultWallet {
     // Allow deposits
     receive() external payable {}
 
-    // Optional: Add fallback to handle accidental calls with data
+    //  Add fallback to handle accidental calls with data
     fallback() external payable {}
 
     // Get vault balance
@@ -62,7 +62,7 @@ contract VaultWallet {
         return address(this).balance;
     }
 
-    // Withdraw funds
+    // Withdraw funds - Only lottery contract can withdraw
     function withdraw(address winner, uint256 amount) external onlyLottery {
         require(winner != address(0), "Invalid recipient");
         require(amount > 0, "Amount must be greater than 0");
@@ -74,7 +74,7 @@ contract VaultWallet {
         emit Withdrawal(winner, amount);
     }
 
-    // Initialize or update lottery contract address
+    // Initialize or update lottery contract address - only owner and only run once
     function initialize(address _lotteryContract) external onlyOwner {
         require(_lotteryContract != address(0), "Invalid lottery address");
         
