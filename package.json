@@ -9,7 +9,8 @@
     "eslint": "^9.17.0",
     "ethers": "^6.13.4",
     "hardhat": "^2.22.16",
-    "hardhat-deploy": "^0.14.0"
+    "hardhat-deploy": "^0.14.0",
+    "solhint": "^5.0.3"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-ignition": "^0.15.8",
