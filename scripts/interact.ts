@@ -12,27 +12,20 @@ async function main() {
     "VaultWallet",
     "0x5fbdb2315678afecb367f032d93f642f64180aa3" 
   );
-
-  // Set the lottery address
-  await setLotteryAddress(vault, owner);
-
-  // Get the vault balance
-  const balance = await vault.getBalance();
-  console.log("Vault balance:", ethers.formatEther(balance));
-  
-
-  console.log("Owner address:", await owner.getAddress());
-  console.log("Addr1 address:", await addr1.getAddress());
-
   // Get the lottery contract
   const lottery: Lottery = await ethers.getContractAt(
     "Lottery",
     "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512" 
   );
 
+  // Set the lottery contract address
+  await vault.connect(owner).initialize("0xe7f1725e7734ce288f8367e1bb143e90bb3f0512");
+
+
+
   // check if draw is open
   const draw = await lottery.connect(addr1).isDrawOpen();
-  console.log("Draw Open:", draw.isOpen);
+
   
   if(!draw.isOpen) {
    await lottery.connect(owner).startNewDraw();
@@ -40,19 +33,18 @@ async function main() {
 
   // console.log(draw.status)
   const price = await lottery.ticketPrice();
-  console.log("Ticket Price in Wei:", price);
   console.log("Ticket Price in ETH:", ethers.formatEther(price));
 
-  const potDetails = await lottery.getPotDetails();
-  console.log("Pot Details:");
-  console.log("Current Balance:", ethers.formatEther(potDetails.currentBalance));
-  console.log("Tickets Sold:", potDetails.ticketsSold);
-  console.log("Start Time:", new Date(Number(potDetails.startTime) * 1000).toLocaleString());
-  console.log("End Time:", new Date(Number(potDetails.endTime) * 1000).toLocaleString());
-  console.log("Draw Time:", new Date(Number(potDetails.drawTime) * 1000).toLocaleString());
-  console.log("Time Remaining:", potDetails.timeRemaining);
-  console.log("Is Finalized:", potDetails.isFinalized);
-  console.log("Winner:", potDetails.winner);
+  // const potDetails = await lottery.getPotDetails();
+  // console.log("Pot Details:");
+  // console.log("Current Balance:", ethers.formatEther(potDetails.currentBalance));
+  // console.log("Tickets Sold:", potDetails.ticketsSold);
+  // console.log("Start Time:", new Date(Number(potDetails.startTime) * 1000).toLocaleString());
+  // console.log("End Time:", new Date(Number(potDetails.endTime) * 1000).toLocaleString());
+  // console.log("Draw Time:", new Date(Number(potDetails.drawTime) * 1000).toLocaleString());
+  // console.log("Time Remaining:", potDetails.timeRemaining);
+  // console.log("Is Finalized:", potDetails.isFinalized);
+  // console.log("Winner:", potDetails.winner);
 
 
   // // // buy tickets
@@ -90,11 +82,4 @@ async function selectWinner(lottery: Lottery, owner: SignerWithAddress) {
   const tx = await lottery.connect(owner).selectWinner();
   const receipt = await tx.wait();
   console.log( "Selecting Winner: \n \n", receipt);
-}
-
-async function setLotteryAddress(vault: VaultWallet, owner: SignerWithAddress) {
-
-  const tx = await vault.connect(owner).initialize("0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512");
-  const receipt = await tx.wait();
-  // console.log( "Setting Lottery Address: \n \n", receipt);
 }
