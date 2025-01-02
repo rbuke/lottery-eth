@@ -1,8 +1,3 @@
-
-
-Here's a comprehensive README.md for your project:
-
-```markdown:README.md
 # Ethereum Lottery Smart Contract
 
 A decentralized lottery system built on Ethereum, featuring automated draws, secure prize pools, and transparent winner selection.
@@ -105,7 +100,6 @@ await lottery.buyTickets(numberOfTickets, {
 ```typescript
 await lottery.selectWinner();
 ```
-
 
 ## Contributing
 
