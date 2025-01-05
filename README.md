@@ -55,12 +55,28 @@ npx hardhat coverage
 
 ## Development
 
-1. Deploy to local network:
+1. 
 ```bash
+npx hardhat compile 
 npx hardhat node
-npx hardhat npx hardhat ignition deploy ignition/modules/contract.ts --network localhost
-
 ```
+
+2. Deploy the Vault Contract to the network:
+```bash
+npx hardhat ignition deploy ignition/modules/Vault.ts --network localhost
+```
+
+2. Deploy the lottery contract - Ensure the VAULT_WALLET address is updated to match the address it has been deployed to
+```bash
+npx hardhat ignition deploy ignition/modules/Lottery.ts --network localhost
+```
+
+3. Run the initialise function in the Vault smart contract to update the lottery contract address
+```bash 
+# e.g
+ await vault.connect(owner).initialize("0xe7f1725e7734ce288f8367e1bb143e90bb3f0512");
+```
+
 
 
 ## Security

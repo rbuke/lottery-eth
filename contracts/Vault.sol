@@ -79,7 +79,6 @@ contract VaultWallet {
         require(_lotteryContract != address(0), "Invalid lottery address");
         
         if (initialized) {
-            emit Initialized(_lotteryContract);
             return;  // Silently return if already initialized
         }
         

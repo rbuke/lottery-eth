@@ -36,8 +36,16 @@ contract Lottery {
         uint256 ticketsSold;         // Tickets sold for the round
         bool finalized;              // Whether the round is finalized
     }
+    
+    // Can probably remove this as we can get this from the rounds mapping
+    struct Winners {
+        uint256 roundId;
+        address winner;
+        uint256 prize;
+    }
 
     mapping(uint256 => Round) public rounds;  // Mapping of round IDs to round details
+    mapping(uint256 => Winners) public winners;  // Mapping of round IDs to winners
     mapping(uint256 => address[]) public roundParticipants;  // Mapping of round IDs to participants
     mapping(uint256 => mapping(address => uint256)) public ticketCount;  // Mapping of round IDs to ticket counts for each participant
     
@@ -141,7 +149,7 @@ contract Lottery {
     }
 
     // Modified selectWinner to draw from vault
-    function selectWinner() external onlyOwner nonReentrant {
+    function selectWinner() external onlyOwner nonReentrant returns (address winner, uint256 prize) {
         Round storage currentRound = rounds[currentRoundId];
         require(!currentRound.finalized, "Round already finalized");
         require(currentRound.ticketsSold > 0, "No tickets sold");
@@ -158,7 +166,6 @@ contract Lottery {
             )
         ) % currentRound.ticketsSold;
         
-        address winner;
         uint256 ticketSum;
         for (uint i = 0; i < roundParticipants[currentRoundId].length; i++) {
             ticketSum += ticketCount[currentRoundId][roundParticipants[currentRoundId][i]];
@@ -171,15 +178,21 @@ contract Lottery {
         currentRound.winner = winner;
         currentRound.finalized = true;
         
-        uint256 prizeAmount = vaultWallet.getBalance();  // Use the interface method
-        currentRound.prize = prizeAmount;
+        prize = vaultWallet.getBalance();
+        currentRound.prize = prize;
+
+        // Add winner to winners array
+        winners[currentRoundId].roundId = currentRoundId;
+        winners[currentRoundId].winner = winner;
+        winners[currentRoundId].prize = prize;
         
         currentRoundId += 1;
         
         // Transfer prize from vault to winner
-        vaultWallet.withdraw(winner, prizeAmount);  // Use the interface method to withdraw
+        vaultWallet.withdraw(winner, prize);
         
-        emit PrizeDistributed(currentRoundId - 1, winner, prizeAmount);
+        emit PrizeDistributed(currentRoundId - 1, winner, prize);
+        return (winner, prize);
     }
     
 
@@ -226,6 +239,7 @@ contract Lottery {
         currentRound.ticketsSold += _numberOfTickets;
         
         emit TicketsPurchased(currentRoundId, msg.sender, _numberOfTickets, feeAmount, vaultAmount);
+        
     }
     
     ////////////////////////////////////////////////////////////////////////////

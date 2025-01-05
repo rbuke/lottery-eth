@@ -21,8 +21,6 @@ async function main() {
   // Set the lottery contract address
   await vault.connect(owner).initialize("0xe7f1725e7734ce288f8367e1bb143e90bb3f0512");
 
-
-
   // check if draw is open
   const draw = await lottery.connect(addr1).isDrawOpen();
 
@@ -35,26 +33,39 @@ async function main() {
   const price = await lottery.ticketPrice();
   console.log("Ticket Price in ETH:", ethers.formatEther(price));
 
-  // const potDetails = await lottery.getPotDetails();
-  // console.log("Pot Details:");
-  // console.log("Current Balance:", ethers.formatEther(potDetails.currentBalance));
-  // console.log("Tickets Sold:", potDetails.ticketsSold);
-  // console.log("Start Time:", new Date(Number(potDetails.startTime) * 1000).toLocaleString());
-  // console.log("End Time:", new Date(Number(potDetails.endTime) * 1000).toLocaleString());
-  // console.log("Draw Time:", new Date(Number(potDetails.drawTime) * 1000).toLocaleString());
-  // console.log("Time Remaining:", potDetails.timeRemaining);
-  // console.log("Is Finalized:", potDetails.isFinalized);
-  // console.log("Winner:", potDetails.winner);
+  // Get current round ID
+  const currentRoundId = await lottery.currentRoundId();
+  console.log("Current Round ID:", currentRoundId.toString());
 
-
+  // Loop through all rounds
+  for (let i = 0; i < currentRoundId; i++) {
+    try {
+      const winner = await lottery.winners(i);
+      
+      // Only log if there's a valid winner (address isn't zero)
+      if (winner.winner !== ethers.ZeroAddress) {
+        console.log({
+          roundId: i,
+          winner: winner.winner,
+          prize: ethers.formatEther(winner.prize) + " ETH"
+        });
+      }
+    } catch (error) {
+      console.log(`No winner for round ${i}`);
+    }
+  }
   // // // buy tickets
-  // await buyTickets(lottery, 1, addr1, price);
-  // await buyTickets(lottery, 4, addr2, price);
-  // await buyTickets(lottery, 5, addr3, price);
-  // await buyTickets(lottery, 6, addr4, price);
+  // await buyTickets(lottery, 10, addr1, price);
+  // await buyTickets(lottery, 47, addr2, price);
+  // await buyTickets(lottery, 3, addr3, price);
+  // await buyTickets(lottery, 62, addr4, price);
   // await buyTickets(lottery, 2, addr5, price);
 
-  // // select winner
+  // // const myTickets = await lottery.connect(addr2).viewTickets();
+  
+  // // console.log("My Tickets:", myTickets);
+
+  // // // // select winner
   // await selectWinner(lottery, owner);
 
 }
