@@ -55,7 +55,7 @@ async function main() {
     }
   }
   // // // buy tickets
-  // await buyTickets(lottery, 10, addr1, price);
+  await buyTickets(lottery, 10, addr1, price);
   // await buyTickets(lottery, 47, addr2, price);
   // await buyTickets(lottery, 3, addr3, price);
   // await buyTickets(lottery, 62, addr4, price);
