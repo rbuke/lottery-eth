@@ -5,7 +5,7 @@ import { Log } from "@ethersproject/abstract-provider";
 
 async function main() {
   // Get the signers
-  const [owner, addr1, addr2, addr3, addr4, addr5]: SignerWithAddress[] = await ethers.getSigners();
+  const [owner, vaultholder, addr2, addr3, addr4, addr5, addr6]: SignerWithAddress[] = await ethers.getSigners();
 
   // Create the vault contract
   const vault: VaultWallet = await ethers.getContractAt(
@@ -22,7 +22,7 @@ async function main() {
   await vault.connect(owner).initialize("0xe7f1725e7734ce288f8367e1bb143e90bb3f0512");
 
   // check if draw is open
-  const draw = await lottery.connect(addr1).isDrawOpen();
+  const draw = await lottery.connect(addr2).isDrawOpen();
 
   
   if(!draw.isOpen) {
@@ -42,7 +42,7 @@ async function main() {
     try {
       const winner = await lottery.winners(i);
       
-      // Only log if there's a valid winner (address isn't zero)
+      // Only logs if there's a valid winner (address isn't zero and prize is greater than 0)
       if (winner.winner !== ethers.ZeroAddress) {
         console.log({
           roundId: i,
@@ -55,17 +55,18 @@ async function main() {
     }
   }
   // // // buy tickets
-  await buyTickets(lottery, 10, addr1, price);
-  // await buyTickets(lottery, 47, addr2, price);
+  // await buyTickets(lottery, 10, addr2, price);
+  // await buyTickets(lottery, 47, addr6, price);
   // await buyTickets(lottery, 3, addr3, price);
   // await buyTickets(lottery, 62, addr4, price);
   // await buyTickets(lottery, 2, addr5, price);
 
-  // // const myTickets = await lottery.connect(addr2).viewTickets();
+  const myTickets = await lottery.connect(addr6).viewTickets();
+  const [ currentBalance ] = await lottery.getPotDetails();
+  console.log("Current Balance: Eth", ethers.formatEther(currentBalance));
   
-  // // console.log("My Tickets:", myTickets);
 
-  // // // // select winner
+  //  // select winner
   // await selectWinner(lottery, owner);
 
 }
