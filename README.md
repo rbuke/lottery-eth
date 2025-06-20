@@ -34,13 +34,6 @@ cd ethereum-lottery
 npm ci
 ```
 
-3. Create a `.env` file:
-```env
-INFURA_API_KEY=your_infura_key
-PRIVATE_KEY=your_private_key
-ETHERSCAN_API_KEY=your_etherscan_key
-```
-
 ## Testing
 
 Run the test suite:
@@ -98,7 +91,7 @@ graph TD
     C -->|Transfer Prize| E
 ```
 
-## Contract Interaction
+## Contract Interaction (Manual Testing)
 
 1. Owner starts new draw:
 ```typescript
